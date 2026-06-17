@@ -145,4 +145,17 @@ router.post('/:id/merge', (req, res) => {
   res.json({ success: true, data: result });
 });
 
+router.get('/:id/merged-cases', (req, res) => {
+  const mergedCases = caseService.getMergedCases(req.params.id);
+  res.json({ success: true, data: mergedCases });
+});
+
+router.get('/:id/main-case', (req, res) => {
+  const mainCase = caseService.getMainCase(req.params.id);
+  if (!mainCase) {
+    return res.json({ success: true, data: null });
+  }
+  res.json({ success: true, data: mainCase });
+});
+
 export default router;

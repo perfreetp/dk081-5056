@@ -661,6 +661,16 @@ class MemoryStore {
         c.propertyAddress.toLowerCase().includes(kw)
     );
   }
+
+  getMergedCases(mainCaseId: string): CaseInfo[] {
+    return this.cases.filter((c) => c.mergedInto === mainCaseId);
+  }
+
+  getMainCaseByMergedId(mergedCaseId: string): CaseInfo | undefined {
+    const mergedCase = this.cases.find((c) => c.id === mergedCaseId);
+    if (!mergedCase || !mergedCase.mergedInto) return undefined;
+    return this.cases.find((c) => c.id === mergedCase.mergedInto);
+  }
 }
 
 export const store = new MemoryStore();

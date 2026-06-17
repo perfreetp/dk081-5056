@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
+  ArrowRight,
   User,
   Home,
   FileText,
@@ -13,13 +14,15 @@ import {
   X,
   Check,
   AlertCircle,
+  Merge,
+  Users,
 } from 'lucide-react';
 import { api } from '@/services/api';
 import { useCaseStore } from '@/store';
 import StatusBadge from '@/components/StatusBadge';
 import Modal from '@/components/Modal';
 import type { CaseInfo, Heir, Attachment, AttachmentType } from '@/types';
-import { ATTACHMENT_TYPE_LABELS } from '@/types';
+import { ATTACHMENT_TYPE_LABELS, CASE_TYPE_LABELS } from '@/types';
 import { cn } from '@/lib/utils';
 
 export default function CaseDetail() {
@@ -29,11 +32,13 @@ export default function CaseDetail() {
   const [caseInfo, setCaseInfo] = useState<CaseInfo | null>(null);
   const [heirs, setHeirs] = useState<Heir[]>([]);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const [activeTab, setActiveTab] = useState<'info' | 'heirs' | 'attachments'>('heirs');
+  const [activeTab, setActiveTab] = useState<'info' | 'heirs' | 'attachments' | 'merged'>('heirs');
   const [loading, setLoading] = useState(true);
   const [showHeirModal, setShowHeirModal] = useState(false);
   const [editingHeir, setEditingHeir] = useState<Heir | null>(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [mergedCases, setMergedCases] = useState<CaseInfo[]>([]);
+  const [mainCase, setMainCase] = useState<CaseInfo | null>(null);
 
   const [heirForm, setHeirForm] = useState({
     name: '',
@@ -60,14 +65,18 @@ export default function CaseDetail() {
   const loadCaseData = async () => {
     setLoading(true);
     try {
-      const [caseRes, heirsRes, attRes] = await Promise.all([
+      const [caseRes, heirsRes, attRes, mergedRes, mainRes] = await Promise.all([
         api.cases.get(id!),
         api.cases.getHeirs(id!),
         api.cases.getAttachments(id!),
+        api.cases.getMergedCases(id!),
+        api.cases.getMainCase(id!),
       ]);
       setCaseInfo(caseRes.data as CaseInfo);
       setHeirs(heirsRes.data as Heir[]);
       setAttachments(attRes.data as Attachment[]);
+      setMergedCases(mergedRes.data as CaseInfo[]);
+      setMainCase(mainRes.data as CaseInfo | null);
     } catch (error) {
       console.error('加载案件详情失败', error);
     } finally {
@@ -215,6 +224,49 @@ export default function CaseDetail() {
         )}
       </div>
 
+      {mainCase && (
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 flex items-start gap-3">
+          <Merge size={20} className="text-gray-500 mt-0.5 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm text-gray-700 font-medium">
+              本案件已归并至主案件
+            </p>
+            <p className="text-sm text-gray-600 mt-1">
+              <span className="font-semibold text-primary-600">{mainCase.caseNo}</span>
+              {' · '}{mainCase.deceasedName}
+              {' · '}{mainCase.handlerOrg || mainCase.source}
+            </p>
+          </div>
+          <button
+            onClick={() => navigate(`/cases/${mainCase.id}`)}
+            className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-2"
+          >
+            <ArrowRight size={14} />
+            查看主案件
+          </button>
+        </div>
+      )}
+
+      {mergedCases.length > 0 && !mainCase && (
+        <div className="bg-primary-50 border border-primary-200 rounded-lg p-4 flex items-start gap-3">
+          <Users size={20} className="text-primary-600 mt-0.5 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm text-primary-700 font-medium">
+              本案件为主案件，已归并 {mergedCases.length} 条其他申请
+            </p>
+            <p className="text-xs text-primary-600 mt-1">
+              归并案件编号：{mergedCases.map((c) => c.caseNo).join('、')}
+            </p>
+          </div>
+          <button
+            onClick={() => setActiveTab('merged')}
+            className="px-4 py-2 text-sm text-primary-600 border border-primary-300 bg-white rounded-lg hover:bg-primary-100 transition-colors"
+          >
+            查看归并记录
+          </button>
+        </div>
+      )}
+
       <div className="grid grid-cols-3 gap-4">
         <div className="col-span-1 space-y-4">
           <div className="bg-white rounded-lg border border-slate-200 p-5">
@@ -314,6 +366,22 @@ export default function CaseDetail() {
                   {attachments.length}
                 </span>
               </button>
+              {mergedCases.length > 0 && (
+                <button
+                  onClick={() => setActiveTab('merged')}
+                  className={cn(
+                    'px-6 py-3 text-sm font-medium border-b-2 transition-colors',
+                    activeTab === 'merged'
+                      ? 'text-primary-600 border-primary-600'
+                      : 'text-slate-500 border-transparent hover:text-slate-700'
+                  )}
+                >
+                  归并记录
+                  <span className="ml-2 text-xs bg-primary-50 text-primary-600 px-1.5 py-0.5 rounded">
+                    {mergedCases.length}
+                  </span>
+                </button>
+              )}
               <button
                 onClick={() => navigate(`/cases/${id}/dispute`)}
                 className="px-6 py-3 text-sm font-medium text-slate-500 hover:text-slate-700 ml-auto flex items-center gap-1"
@@ -444,6 +512,57 @@ export default function CaseDetail() {
                       </div>
                     ))
                   )}
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'merged' && mergedCases.length > 0 && (
+              <div className="p-5">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="font-semibold text-slate-800">归并的其他申请</h3>
+                  <span className="text-xs text-slate-500">以下案件已归并入主案件，相关材料和继承人信息一并纳入</span>
+                </div>
+                <div className="border border-slate-200 rounded-lg overflow-hidden">
+                  <table className="w-full">
+                    <thead className="bg-slate-50 border-b border-slate-200">
+                      <tr>
+                        <th className="px-4 py-2.5 text-left text-xs font-medium text-slate-500">案件编号</th>
+                        <th className="px-4 py-2.5 text-left text-xs font-medium text-slate-500">类型</th>
+                        <th className="px-4 py-2.5 text-left text-xs font-medium text-slate-500">来源机构</th>
+                        <th className="px-4 py-2.5 text-left text-xs font-medium text-slate-500">申请日期</th>
+                        <th className="px-4 py-2.5 text-left text-xs font-medium text-slate-500">归并时间</th>
+                        <th className="px-4 py-2.5 text-center text-xs font-medium text-slate-500">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {mergedCases.map((c) => (
+                        <tr key={c.id} className="hover:bg-slate-50">
+                          <td className="px-4 py-3 text-sm font-medium text-slate-700">{c.caseNo}</td>
+                          <td className="px-4 py-3">
+                            <span className={cn(
+                              'text-xs px-2 py-0.5 rounded',
+                              c.caseType === 'notary' ? 'bg-primary-50 text-primary-700' : 'bg-yellow-50 text-yellow-700'
+                            )}>
+                              {CASE_TYPE_LABELS[c.caseType]}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-slate-600">{c.handlerOrg || c.source || '-'}</td>
+                          <td className="px-4 py-3 text-sm text-slate-600">{c.applyDate}</td>
+                          <td className="px-4 py-3 text-sm text-slate-600">
+                            {c.updatedAt ? new Date(c.updatedAt).toLocaleDateString('zh-CN') : '-'}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <button
+                              onClick={() => navigate(`/cases/${c.id}`)}
+                              className="text-xs text-primary-600 hover:text-primary-700"
+                            >
+                              查看详情
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}

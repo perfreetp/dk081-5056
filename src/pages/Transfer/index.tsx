@@ -10,6 +10,7 @@ import {
   Eye,
   Download,
   X,
+  Merge,
 } from 'lucide-react';
 import { api } from '@/services/api';
 import StatusBadge from '@/components/StatusBadge';
@@ -22,6 +23,7 @@ export default function Transfer() {
   const navigate = useNavigate();
   const [pendingCases, setPendingCases] = useState<CaseInfo[]>([]);
   const [allCases, setAllCases] = useState<CaseInfo[]>([]);
+  const [caseIdMap, setCaseIdMap] = useState<Record<string, CaseInfo>>({});
   const [transfers, setTransfers] = useState<TransferPackage[]>([]);
   const [selectedCase, setSelectedCase] = useState<CaseInfo | null>(null);
   const [showPreview, setShowPreview] = useState(false);
@@ -40,11 +42,15 @@ export default function Transfer() {
         api.transfers.pending(),
       ]);
       const casesData = casesRes.data as any;
-      setPendingCases(casesData.data || []);
+      setPendingCases((casesData.data || []).filter((c: CaseInfo) => c.status !== 'merged'));
       setTransfers(transfersRes.data as TransferPackage[]);
-      const allRes = await api.cases.list({ pageSize: 100 });
+      const allRes = await api.cases.list({ pageSize: 200 });
       const allData = allRes.data as any;
-      setAllCases(allData.data || []);
+      const allList = allData.data || [];
+      setAllCases(allList);
+      const map: Record<string, CaseInfo> = {};
+      allList.forEach((c: CaseInfo) => { map[c.id] = c; });
+      setCaseIdMap(map);
     } catch (error) {
       console.error('加载数据失败', error);
     } finally {
@@ -307,12 +313,35 @@ export default function Transfer() {
       >
         <div className="space-y-4">
           {selectedCase && (
-            <div className="p-3 bg-slate-50 rounded-lg">
-              <p className="text-sm font-medium text-slate-700">
-                {selectedCase.deceasedName} 继承案
-              </p>
-              <p className="text-xs text-slate-500">{selectedCase.caseNo}</p>
-            </div>
+            <>
+              <div className="p-3 bg-slate-50 rounded-lg">
+                <p className="text-sm font-medium text-slate-700">
+                  {selectedCase.deceasedName} 继承案
+                </p>
+                <p className="text-xs text-slate-500">{selectedCase.caseNo}</p>
+              </div>
+              {(() => {
+                const merged = allCases.filter((c) => c.mergedInto === selectedCase.id);
+                if (merged.length > 0) {
+                  return (
+                    <div className="p-3 bg-primary-50 border border-primary-200 rounded-lg">
+                      <div className="flex items-start gap-2">
+                        <Merge size={16} className="text-primary-600 mt-0.5 flex-shrink-0" />
+                        <div className="flex-1">
+                          <p className="text-xs text-primary-700 font-medium">
+                            本移交包已纳入 {merged.length} 条归并案件的材料和继承人信息
+                          </p>
+                          <p className="text-xs text-primary-600 mt-1">
+                            归并案件：{merged.map((c) => c.caseNo).join('、')}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+            </>
           )}
 
           <div>

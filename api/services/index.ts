@@ -126,62 +126,115 @@ class CaseService {
 
     const mergedCases: CaseInfo[] = [];
     for (const dupId of duplicateCaseIds) {
-      const updated = store.updateCase(dupId, { status: 'merged', mergedInto: mainCaseId });
+      const updated = store.updateCase(dupId, { status: 'merged', mergedInto: mainCaseId, updatedAt: new Date().toISOString() });
       if (updated) mergedCases.push(updated);
     }
 
     return { mainCase, mergedCases };
   }
+
+  getMergedCases(mainCaseId: string): CaseInfo[] {
+    return store.getMergedCases(mainCaseId);
+  }
+
+  getMainCase(mergedCaseId: string): CaseInfo | null {
+    return store.getMainCaseByMergedId(mergedCaseId) || null;
+  }
 }
 
 class TransferService {
   getPendingTransfers(): TransferPackage[] {
-    return store.getTransfers().filter((t) => t.status === 'pending' || t.status === 'sent');
+    return store.getTransfers().filter((t) => {
+      const caseInfo = store.getCaseById(t.caseId);
+      return (t.status === 'pending' || t.status === 'sent') && caseInfo && caseInfo.status !== 'merged';
+    });
   }
 
   getTransferByCaseId(caseId: string): TransferPackage | null {
     return store.getTransferByCaseId(caseId) || null;
   }
 
+  private getMergedHeirs(caseId: string): Heir[] {
+    const mergedCases = store.getMergedCases(caseId);
+    const allHeirs: Heir[] = [];
+    for (const mc of mergedCases) {
+      const mcHeirs = store.getHeirsByCaseId(mc.id);
+      const mainHeirs = store.getHeirsByCaseId(caseId);
+      const mainHeirKeys = new Set(mainHeirs.map((h) => `${h.name}|${h.idCard}`));
+      for (const h of mcHeirs) {
+        const key = `${h.name}|${h.idCard}`;
+        if (!mainHeirKeys.has(key)) {
+          allHeirs.push({ ...h, name: `${h.name}（来自归并案${mc.caseNo}）` });
+        }
+      }
+    }
+    return allHeirs;
+  }
+
   generateMaterialCatalog(caseId: string): MaterialItem[] {
     const caseInfo = store.getCaseById(caseId);
     if (!caseInfo) return [];
 
+    const mergedCases = store.getMergedCases(caseId);
+    const mainHeirs = store.getHeirsByCaseId(caseId);
+    const mergedHeirs = this.getMergedHeirs(caseId);
+    const allHeirs = [...mainHeirs, ...mergedHeirs];
+
+    const mainAttachments = store.getAttachmentsByCaseId(caseId);
+    const mergedAttachments: Attachment[] = [];
+    for (const mc of mergedCases) {
+      mergedAttachments.push(...store.getAttachmentsByCaseId(mc.id));
+    }
+    const allAttachments = [...mainAttachments, ...mergedAttachments];
+
     const baseMaterials: MaterialItem[] = [
-      { id: 'mat_1', name: '死亡证明', type: 'death_cert', count: 1, isRequired: true, hasProvided: true },
-      { id: 'mat_2', name: '继承人身份证明', type: 'id_card', count: 2, isRequired: true, hasProvided: true },
-      { id: 'mat_3', name: '不动产权证书', type: 'property_cert', count: 1, isRequired: true, hasProvided: true },
-      { id: 'mat_4', name: '亲属关系证明', type: 'other', count: 1, isRequired: true, hasProvided: true },
+      { id: 'mat_1', name: '死亡证明', type: 'death_cert', count: 1, isRequired: true, hasProvided: allAttachments.some((a) => a.type === 'death_cert') },
+      { id: 'mat_2', name: '继承人身份证明', type: 'id_card', count: allHeirs.length, isRequired: true, hasProvided: allHeirs.length > 0 },
+      { id: 'mat_3', name: '不动产权证书', type: 'property_cert', count: 1, isRequired: true, hasProvided: allAttachments.some((a) => a.type === 'property_cert') },
+      { id: 'mat_4', name: '亲属关系证明', type: 'other', count: 1, isRequired: true, hasProvided: allAttachments.some((a) => a.type === 'other') },
     ];
 
-    if (caseInfo.caseType === 'notary') {
+    if (caseInfo.caseType === 'notary' || mergedCases.some((m) => m.caseType === 'notary')) {
       baseMaterials.push({
         id: 'mat_5',
         name: '继承权公证书',
         type: 'notarial_cert',
-        count: 1,
+        count: allAttachments.filter((a) => a.type === 'notarial_cert').length || 1,
         isRequired: true,
-        hasProvided: true,
-      });
-    } else {
-      baseMaterials.push({
-        id: 'mat_5',
-        name: '调解协议书',
-        type: 'mediation_agreement',
-        count: 1,
-        isRequired: true,
-        hasProvided: true,
+        hasProvided: allAttachments.some((a) => a.type === 'notarial_cert'),
       });
     }
 
-    const heirs = store.getHeirsByCaseId(caseId);
-    const hasRenounced = heirs.some((h) => h.isRenounced);
-    if (hasRenounced) {
+    if (caseInfo.caseType === 'mediation' || mergedCases.some((m) => m.caseType === 'mediation')) {
       baseMaterials.push({
         id: 'mat_6',
+        name: '调解协议书',
+        type: 'mediation_agreement',
+        count: allAttachments.filter((a) => a.type === 'mediation_agreement').length || 1,
+        isRequired: true,
+        hasProvided: allAttachments.some((a) => a.type === 'mediation_agreement'),
+      });
+    }
+
+    const hasRenounced = allHeirs.some((h) => h.isRenounced);
+    if (hasRenounced) {
+      baseMaterials.push({
+        id: 'mat_7',
         name: '放弃继承声明书',
         type: 'renounce_declaration',
-        count: heirs.filter((h) => h.isRenounced).length,
+        count: allHeirs.filter((h) => h.isRenounced).length,
+        isRequired: false,
+        hasProvided: allAttachments.some((a) => a.type === 'renounce_declaration'),
+      });
+    }
+
+    const hasWill = allAttachments.some((a) => a.type === 'will');
+    if (hasWill) {
+      baseMaterials.push({
+        id: 'mat_8',
+        name: '遗嘱',
+        type: 'will',
+        count: allAttachments.filter((a) => a.type === 'will').length,
         isRequired: false,
         hasProvided: true,
       });
@@ -193,6 +246,7 @@ class TransferService {
   createTransfer(caseId: string, handler: string): TransferPackage {
     const caseInfo = store.getCaseById(caseId);
     if (!caseInfo) throw new Error('案件不存在');
+    if (caseInfo.status === 'merged') throw new Error('已归并案件不可单独移交');
 
     const transferNo = `YD${new Date().getFullYear()}${String(store.getTransfers().length + 1).padStart(3, '0')}`;
     const materialCatalog = this.generateMaterialCatalog(caseId);

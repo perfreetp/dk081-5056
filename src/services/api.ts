@@ -51,6 +51,8 @@ export const api = {
       request(`/cases/disputes/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     merge: (mainCaseId: string, duplicateCaseIds: string[]) =>
       request(`/cases/${mainCaseId}/merge`, { method: 'POST', body: JSON.stringify({ duplicateCaseIds }) }),
+    getMergedCases: (caseId: string) => request(`/cases/${caseId}/merged-cases`),
+    getMainCase: (caseId: string) => request(`/cases/${caseId}/main-case`),
   },
   transfers: {
     pending: () => request('/transfers/pending'),
