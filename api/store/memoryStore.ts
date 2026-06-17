@@ -171,6 +171,23 @@ class MemoryStore {
         createdAt: daysAgo(12),
         updatedAt: daysAgo(4),
       },
+      {
+        id: 'case_9',
+        caseNo: 'GZJ2025007',
+        caseType: 'mediation',
+        source: '县人民调解委员会',
+        status: 'pending',
+        deceasedName: '张三',
+        deceasedIdCard: '320101195001011234',
+        deceasedDate: '2025-01-15',
+        propertyAddress: '县城关镇人民中路88号1栋302室',
+        propertyArea: 120.5,
+        applyDate: '2025-03-05',
+        handler: '王调解员',
+        handlerOrg: '县人民调解委员会',
+        createdAt: daysAgo(8),
+        updatedAt: daysAgo(8),
+      },
     ];
 
     this.nextId = 10;

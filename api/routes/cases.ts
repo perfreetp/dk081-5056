@@ -133,4 +133,16 @@ router.patch('/:id/status', (req, res) => {
   res.json({ success: true, data: updated });
 });
 
+router.post('/:id/merge', (req, res) => {
+  const { duplicateCaseIds } = req.body as { duplicateCaseIds: string[] };
+  if (!Array.isArray(duplicateCaseIds) || duplicateCaseIds.length === 0) {
+    return res.status(400).json({ success: false, message: '请选择需要归并的重复案件' });
+  }
+  const result = caseService.mergeCases(req.params.id, duplicateCaseIds);
+  if (!result.mainCase) {
+    return res.status(404).json({ success: false, message: '主案件不存在' });
+  }
+  res.json({ success: true, data: result });
+});
+
 export default router;

@@ -21,6 +21,7 @@ import { cn } from '@/lib/utils';
 export default function Transfer() {
   const navigate = useNavigate();
   const [pendingCases, setPendingCases] = useState<CaseInfo[]>([]);
+  const [allCases, setAllCases] = useState<CaseInfo[]>([]);
   const [transfers, setTransfers] = useState<TransferPackage[]>([]);
   const [selectedCase, setSelectedCase] = useState<CaseInfo | null>(null);
   const [showPreview, setShowPreview] = useState(false);
@@ -41,6 +42,9 @@ export default function Transfer() {
       const casesData = casesRes.data as any;
       setPendingCases(casesData.data || []);
       setTransfers(transfersRes.data as TransferPackage[]);
+      const allRes = await api.cases.list({ pageSize: 100 });
+      const allData = allRes.data as any;
+      setAllCases(allData.data || []);
     } catch (error) {
       console.error('加载数据失败', error);
     } finally {
@@ -198,14 +202,17 @@ export default function Transfer() {
               transfers
                 .filter((t) => t.status === 'pending' || t.status === 'sent')
                 .map((t) => {
-                  const caseItem = pendingCases.find((c) => c.id === t.caseId);
+                  const caseItem = allCases.find((c) => c.id === t.caseId);
                   return (
                     <div key={t.id} className="p-4 hover:bg-slate-50 transition-colors">
                       <div className="flex items-start justify-between">
                         <div>
-                          <p className="font-medium text-slate-700">{t.transferNo}</p>
+                          <p className="font-medium text-slate-700">{caseItem?.deceasedName || '未知'} 继承案</p>
                           <p className="text-xs text-slate-500 mt-0.5">
-                            {caseItem?.deceasedName || '未知'} · {caseItem?.caseNo || ''}
+                            {t.transferNo} · {caseItem?.caseNo || '未知'}
+                          </p>
+                          <p className="text-xs text-slate-400 mt-1">
+                            来源机构：{caseItem?.handlerOrg || caseItem?.source || '未知'}
                           </p>
                           <p className="text-xs text-slate-400 mt-1">
                             共 {t.materialCatalog.length} 项材料

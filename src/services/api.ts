@@ -49,6 +49,8 @@ export const api = {
       request(`/cases/${caseId}/disputes`, { method: 'POST', body: JSON.stringify(data) }),
     updateDispute: (id: string, data: unknown) =>
       request(`/cases/disputes/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    merge: (mainCaseId: string, duplicateCaseIds: string[]) =>
+      request(`/cases/${mainCaseId}/merge`, { method: 'POST', body: JSON.stringify({ duplicateCaseIds }) }),
   },
   transfers: {
     pending: () => request('/transfers/pending'),

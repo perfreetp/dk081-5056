@@ -6,7 +6,8 @@ export type CaseStatus =
   | 'transferred'
   | 'accepted'
   | 'correction'
-  | 'completed';
+  | 'completed'
+  | 'merged';
 
 export type CaseType = 'notary' | 'mediation';
 
@@ -175,6 +176,7 @@ export const CASE_STATUS_LABELS: Record<CaseStatus, string> = {
   accepted: '已受理',
   correction: '需补正',
   completed: '已完成',
+  merged: '已归并',
 };
 
 export const CASE_TYPE_LABELS: Record<CaseType, string> = {

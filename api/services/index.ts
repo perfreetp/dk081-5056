@@ -115,6 +115,27 @@ class CaseService {
   updateCaseStatus(caseId: string, status: CaseStatus): CaseInfo | null {
     return store.updateCase(caseId, { status }) || null;
   }
+
+  searchCases(keyword: string): CaseInfo[] {
+    return store.searchCases(keyword);
+  }
+
+  mergeCases(mainCaseId: string, duplicateCaseIds: string[]): { mainCase: CaseInfo | null; mergedCases: CaseInfo[] } {
+    const mainCase = store.getCaseById(mainCaseId);
+    if (!mainCase) return { mainCase: null, mergedCases: [] };
+
+    const mergedCases: CaseInfo[] = [];
+    for (const dupId of duplicateCaseIds) {
+      const updated = store.updateCase(dupId, { status: 'merged', mergedInto: mainCaseId });
+      if (updated) mergedCases.push(updated);
+    }
+
+    return { mainCase, mergedCases };
+  }
+
+  getCaseById(id: string): CaseInfo | null {
+    return store.getCaseById(id) || null;
+  }
 }
 
 class TransferService {

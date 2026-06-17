@@ -5,7 +5,6 @@ import {
   Filter,
   Merge,
   Eye,
-  ChevronDown,
   FileText,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -29,6 +28,7 @@ export default function CaseList() {
   const [showMergeModal, setShowMergeModal] = useState(false);
   const [selectedCase, setSelectedCase] = useState<CaseInfo | null>(null);
   const [duplicateCases, setDuplicateCases] = useState<CaseInfo[]>([]);
+  const [mainCaseId, setMainCaseId] = useState<string>('');
 
   const [formData, setFormData] = useState({
     caseNo: '',
@@ -76,7 +76,7 @@ export default function CaseList() {
         ...formData,
         status: 'pending',
         propertyArea: parseFloat(formData.propertyArea) || 0,
-        handlerOrg: '县公证处',
+        handlerOrg: formData.source || (formData.caseType === 'notary' ? '县公证处' : '调解组织'),
       });
       setShowAddModal(false);
       loadCases();
@@ -100,12 +100,35 @@ export default function CaseList() {
 
   const handleCheckDuplicates = async (caseItem: CaseInfo) => {
     setSelectedCase(caseItem);
+    setMainCaseId(caseItem.id);
     try {
       const res = await api.cases.getDuplicates(caseItem.id);
       setDuplicateCases(res.data as CaseInfo[]);
       setShowMergeModal(true);
     } catch (error) {
       console.error('查询重复案件失败', error);
+    }
+  };
+
+  const handleMergeCases = async () => {
+    if (!mainCaseId) {
+      alert('请选择保留的主案件');
+      return;
+    }
+    const duplicateCaseIds = duplicateCases
+      .filter((c) => c.id !== mainCaseId)
+      .map((c) => c.id);
+    if (duplicateCaseIds.length === 0) {
+      alert('没有需要归并的重复案件');
+      return;
+    }
+    try {
+      await api.cases.merge(mainCaseId, duplicateCaseIds);
+      setShowMergeModal(false);
+      loadCases();
+    } catch (error) {
+      console.error('归并案件失败', error);
+      alert('归并失败，请重试');
     }
   };
 
@@ -203,9 +226,12 @@ export default function CaseList() {
                 </tr>
               ) : (
                 cases.map((c) => (
-                  <tr key={c.id} className="hover:bg-slate-50 transition-colors">
+                  <tr key={c.id} className={cn('hover:bg-slate-50 transition-colors', c.status === 'merged' && 'opacity-60 bg-slate-50')}>
                     <td className="px-4 py-3">
                       <span className="text-sm font-medium text-slate-700">{c.caseNo}</span>
+                      {c.status === 'merged' && c.mergedInto && (
+                        <span className="block text-xs text-slate-400 mt-0.5">已归并至其他案件</span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <span className={cn(
@@ -227,7 +253,7 @@ export default function CaseList() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-sm text-slate-600 max-w-xs truncate">{c.propertyAddress}</td>
-                    <td className="px-4 py-3 text-sm text-slate-600">{c.source}</td>
+                    <td className="px-4 py-3 text-sm text-slate-600">{c.handlerOrg || c.source || '-'}</td>
                     <td className="px-4 py-3 text-sm text-slate-600">{c.applyDate}</td>
                     <td className="px-4 py-3">
                       <StatusBadge status={c.status} size="sm" />
@@ -241,13 +267,15 @@ export default function CaseList() {
                         >
                           <Eye size={16} />
                         </button>
-                        <button
-                          onClick={() => handleCheckDuplicates(c)}
-                          className="p-1.5 text-slate-400 hover:text-yellow-600 hover:bg-yellow-50 rounded transition-colors"
-                          title="归并核查"
-                        >
-                          <Merge size={16} />
-                        </button>
+                        {c.status !== 'merged' && (
+                          <button
+                            onClick={() => handleCheckDuplicates(c)}
+                            className="p-1.5 text-slate-400 hover:text-yellow-600 hover:bg-yellow-50 rounded transition-colors"
+                            title="归并核查"
+                          >
+                            <Merge size={16} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -428,53 +456,72 @@ export default function CaseList() {
         title="重复申请核查"
         size="lg"
         footer={
-          <button
-            onClick={() => setShowMergeModal(false)}
-            className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
-          >
-            关闭
-          </button>
+          <>
+            <button
+              onClick={() => setShowMergeModal(false)}
+              className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
+            >
+              取消
+            </button>
+            <button
+              onClick={handleMergeCases}
+              disabled={duplicateCases.filter((c) => c.id !== mainCaseId).length === 0}
+              className="px-4 py-2 text-sm text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              确认归并
+            </button>
+          </>
         }
       >
         <div className="space-y-4">
           <div className="p-3 bg-blue-50 rounded-lg">
             <p className="text-sm text-blue-700">
-              当前案件：<span className="font-medium">{selectedCase?.deceasedName}</span>（{selectedCase?.caseNo}）
+              发现 {duplicateCases.length + 1} 条同一被继承人的申请，请选择保留的主案件，其余案件将标记为"已归并"。
             </p>
             <p className="text-xs text-blue-600 mt-1">
-              身份证号：{selectedCase?.deceasedIdCard}
+              被继承人：{selectedCase?.deceasedName}（身份证号：{selectedCase?.deceasedIdCard}）
             </p>
           </div>
 
-          {duplicateCases.length > 0 ? (
-            <>
-              <p className="text-sm font-medium text-slate-700">
-                发现 {duplicateCases.length} 条重复申请：
-              </p>
-              <div className="space-y-2">
-                {duplicateCases.map((c) => (
-                  <div
-                    key={c.id}
-                    className="p-3 border border-slate-200 rounded-lg flex items-center justify-between hover:bg-slate-50"
-                  >
-                    <div>
-                      <p className="text-sm font-medium text-slate-700">{c.caseNo}</p>
-                      <p className="text-xs text-slate-500">{c.source} · {c.applyDate}</p>
-                    </div>
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-slate-700">选择保留的主案件：</p>
+            {[selectedCase, ...duplicateCases].filter(Boolean).map((c) => (
+              <label
+                key={c.id}
+                className={cn(
+                  'p-3 border rounded-lg flex items-start gap-3 cursor-pointer transition-colors',
+                  mainCaseId === c.id
+                    ? 'border-primary-500 bg-primary-50'
+                    : 'border-slate-200 hover:bg-slate-50'
+                )}
+              >
+                <input
+                  type="radio"
+                  name="mainCase"
+                  checked={mainCaseId === c.id}
+                  onChange={() => setMainCaseId(c.id)}
+                  className="mt-1 w-4 h-4 text-primary-600 focus:ring-primary-500"
+                />
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium text-slate-700">{c.caseNo}</p>
                     <StatusBadge status={c.status} size="sm" />
                   </div>
-                ))}
-              </div>
-              <div className="p-3 bg-yellow-50 rounded-lg">
-                <p className="text-sm text-yellow-700">
-                  <ChevronDown size={16} className="inline mr-1" />
-                  建议将以上案件归并处理，避免群众重复提交材料
-                </p>
-              </div>
-            </>
-          ) : (
-            <div className="py-8 text-center text-slate-400">
-              <p className="text-sm">未发现重复申请</p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {c.caseType === 'notary' ? '公证继承' : '诉调确认'} · {c.source || c.handlerOrg} · {c.applyDate}
+                  </p>
+                  <p className="text-xs text-slate-400 mt-0.5">来源机构：{c.handlerOrg || c.source || '未填写'}</p>
+                </div>
+              </label>
+            ))}
+          </div>
+
+          {duplicateCases.filter((c) => c.id !== mainCaseId).length > 0 && (
+            <div className="p-3 bg-yellow-50 rounded-lg">
+              <p className="text-sm text-yellow-700">
+                将标记为"已归并"的案件：
+                {duplicateCases.filter((c) => c.id !== mainCaseId).map((c) => ` ${c.caseNo}`).join('、')}
+              </p>
             </div>
           )}
         </div>

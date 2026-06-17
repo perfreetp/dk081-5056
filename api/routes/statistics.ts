@@ -23,7 +23,7 @@ router.get('/search', (req, res) => {
   if (!keyword) {
     return res.status(400).json({ success: false, message: '请输入关键词' });
   }
-  const cases = store.searchCases(keyword);
+  const cases = caseService.searchCases(keyword);
   res.json({ success: true, data: cases });
 });
 

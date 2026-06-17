@@ -45,6 +45,12 @@ export default function CaseDetail() {
     remark: '',
   });
 
+  const [uploadForm, setUploadForm] = useState({
+    type: 'death_cert' as AttachmentType,
+    name: '',
+    fileName: '',
+  });
+
   useEffect(() => {
     if (id) {
       loadCaseData();
@@ -134,6 +140,35 @@ export default function CaseDetail() {
       } catch (error) {
         console.error('状态更新失败', error);
       }
+    }
+  };
+
+  const handleOpenUpload = () => {
+    setUploadForm({ type: 'death_cert' as AttachmentType, name: '', fileName: '' });
+    setShowUploadModal(true);
+  };
+
+  const handleSaveAttachment = async () => {
+    const fileName = uploadForm.fileName || uploadForm.name || ATTACHMENT_TYPE_LABELS[uploadForm.type];
+    const finalName = uploadForm.name || fileName;
+    if (!finalName.trim()) {
+      alert('请输入材料名称');
+      return;
+    }
+    try {
+      await api.cases.addAttachment(id!, {
+        type: uploadForm.type,
+        name: finalName,
+        url: `/files/${uploadForm.type}_${Date.now()}.pdf`,
+        size: 256000,
+        uploadedBy: caseInfo?.handler || '当前用户',
+      });
+      setShowUploadModal(false);
+      const attRes = await api.cases.getAttachments(id!);
+      setAttachments(attRes.data as Attachment[]);
+    } catch (error) {
+      console.error('上传材料失败', error);
+      alert('上传材料失败，请重试');
     }
   };
 
@@ -375,7 +410,7 @@ export default function CaseDetail() {
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="font-semibold text-slate-800">材料附件</h3>
                   <button
-                    onClick={() => setShowUploadModal(true)}
+                    onClick={handleOpenUpload}
                     className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary-50 text-primary-600 rounded-lg hover:bg-primary-100 transition-colors"
                   >
                     <Upload size={14} />
@@ -534,10 +569,10 @@ export default function CaseDetail() {
               取消
             </button>
             <button
-              onClick={() => setShowUploadModal(false)}
+              onClick={handleSaveAttachment}
               className="px-4 py-2 text-sm text-white bg-primary-600 rounded-lg hover:bg-primary-700"
             >
-              上传
+              保存
             </button>
           </>
         }
@@ -545,18 +580,43 @@ export default function CaseDetail() {
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">材料类型</label>
-            <select className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-primary-500">
+            <select
+              value={uploadForm.type}
+              onChange={(e) => setUploadForm({ ...uploadForm, type: e.target.value as AttachmentType })}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-primary-500"
+            >
               {Object.entries(ATTACHMENT_TYPE_LABELS).map(([value, label]) => (
                 <option key={value} value={value}>{label}</option>
               ))}
             </select>
           </div>
           <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">材料名称</label>
+            <input
+              type="text"
+              value={uploadForm.name}
+              onChange={(e) => setUploadForm({ ...uploadForm, name: e.target.value })}
+              placeholder={`如：${ATTACHMENT_TYPE_LABELS[uploadForm.type]}.pdf`}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-primary-500"
+            />
+          </div>
+          <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">选择文件</label>
-            <div className="border-2 border-dashed border-slate-200 rounded-lg p-8 text-center hover:border-primary-400 transition-colors cursor-pointer">
-              <Upload size={32} className="mx-auto text-slate-400 mb-2" />
-              <p className="text-sm text-slate-600">点击或拖拽文件到此处上传</p>
-              <p className="text-xs text-slate-400 mt-1">支持 PDF、JPG、PNG 格式，单个文件不超过 10MB</p>
+            <div className="border-2 border-dashed border-slate-200 rounded-lg p-6 text-center hover:border-primary-400 transition-colors cursor-pointer"
+              onClick={() => {
+                const fakeName = `${ATTACHMENT_TYPE_LABELS[uploadForm.type]}_${Date.now()}.pdf`;
+                setUploadForm({ ...uploadForm, fileName: fakeName, name: uploadForm.name || fakeName });
+              }}
+            >
+              <Upload size={28} className="mx-auto text-slate-400 mb-2" />
+              {uploadForm.fileName ? (
+                <p className="text-sm text-primary-600 font-medium">{uploadForm.fileName}</p>
+              ) : (
+                <>
+                  <p className="text-sm text-slate-600">点击选择文件</p>
+                  <p className="text-xs text-slate-400 mt-1">支持 PDF、JPG、PNG 格式，单个文件不超过 10MB</p>
+                </>
+              )}
             </div>
           </div>
         </div>
