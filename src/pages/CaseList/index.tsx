@@ -115,15 +115,16 @@ export default function CaseList() {
       alert('请选择保留的主案件');
       return;
     }
-    const duplicateCaseIds = duplicateCases
+    const allCases = [selectedCase, ...duplicateCases].filter(Boolean) as CaseInfo[];
+    const mergeCaseIds = allCases
       .filter((c) => c.id !== mainCaseId)
       .map((c) => c.id);
-    if (duplicateCaseIds.length === 0) {
+    if (mergeCaseIds.length === 0) {
       alert('没有需要归并的重复案件');
       return;
     }
     try {
-      await api.cases.merge(mainCaseId, duplicateCaseIds);
+      await api.cases.merge(mainCaseId, mergeCaseIds);
       setShowMergeModal(false);
       loadCases();
     } catch (error) {
@@ -465,7 +466,10 @@ export default function CaseList() {
             </button>
             <button
               onClick={handleMergeCases}
-              disabled={duplicateCases.filter((c) => c.id !== mainCaseId).length === 0}
+              disabled={(() => {
+                const all = [selectedCase, ...duplicateCases].filter(Boolean) as CaseInfo[];
+                return all.filter((c) => c.id !== mainCaseId).length === 0;
+              })()}
               className="px-4 py-2 text-sm text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               确认归并
@@ -516,14 +520,18 @@ export default function CaseList() {
             ))}
           </div>
 
-          {duplicateCases.filter((c) => c.id !== mainCaseId).length > 0 && (
-            <div className="p-3 bg-yellow-50 rounded-lg">
-              <p className="text-sm text-yellow-700">
-                将标记为"已归并"的案件：
-                {duplicateCases.filter((c) => c.id !== mainCaseId).map((c) => ` ${c.caseNo}`).join('、')}
-              </p>
-            </div>
-          )}
+          {(() => {
+            const allCases = [selectedCase, ...duplicateCases].filter(Boolean) as CaseInfo[];
+            const mergedCases = allCases.filter((c) => c.id !== mainCaseId);
+            return mergedCases.length > 0 ? (
+              <div className="p-3 bg-yellow-50 rounded-lg">
+                <p className="text-sm text-yellow-700">
+                  将标记为"已归并"的案件：
+                  {mergedCases.map((c) => ` ${c.caseNo}`).join('、')}
+                </p>
+              </div>
+            ) : null;
+          })()}
         </div>
       </Modal>
     </div>

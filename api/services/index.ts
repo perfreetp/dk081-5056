@@ -132,10 +132,6 @@ class CaseService {
 
     return { mainCase, mergedCases };
   }
-
-  getCaseById(id: string): CaseInfo | null {
-    return store.getCaseById(id) || null;
-  }
 }
 
 class TransferService {

@@ -50,6 +50,7 @@ export interface CaseInfo {
   handlerOrg: string;
   remark?: string;
   isOverdue?: boolean;
+  mergedInto?: string;
   createdAt: string;
   updatedAt: string;
 }
